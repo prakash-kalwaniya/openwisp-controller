@@ -202,11 +202,11 @@ class DeviceConfigSerializer(BaseSerializer):
                 with transaction.atomic():
                     vpn_list = config.templates.filter(type="vpn").values_list("vpn")
                     if vpn_list:
-                        for vpnclient in config.vpnclient_set.select_related(
-                            'vpn', 'cert', 'ip'
-                        ).exclude(
-                            vpn__in=vpn_list
-                        ).iterator():
+                        for vpnclient in (
+                            config.vpnclient_set.select_related("vpn", "cert", "ip")
+                            .exclude(vpn__in=vpn_list)
+                            .iterator()
+                        ):
                             vpnclient.delete()
                     config.templates.set(config_templates, clear=True)
             config.save()

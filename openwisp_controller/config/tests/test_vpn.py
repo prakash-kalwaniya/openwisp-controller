@@ -286,6 +286,45 @@ class TestVpn(BaseTestVpn, TestCase):
             vpnclient.save()
             _assert_vpn_client_cert(cert, vpnclient, 1, 0)
 
+    def test_vpn_client_post_delete_on_template_removal(self):
+        """Regression test for #1221: VpnClient.post_delete must fire
+        when a VPN template is removed so that peer cache is invalidated
+        and certificates are properly revoked."""
+        org = self._get_org()
+        vpn = self._create_vpn()
+        t = self._create_template(name="vpn-test", type="vpn", vpn=vpn, auto_cert=True)
+        c = self._create_config(organization=org)
+        c.templates.add(t)
+        vpnclient = c.vpnclient_set.first()
+        self.assertIsNotNone(vpnclient)
+        cert_pk = vpnclient.cert.pk
+        with mock.patch.object(Vpn, "_invalidate_peer_cache") as mock_invalidate:
+            c.templates.remove(t)
+            mock_invalidate.assert_called()
+        self.assertFalse(VpnClient.objects.filter(pk=vpnclient.pk).exists())
+        # Certificate should be revoked (auto_cert=True)
+        self.assertTrue(Cert.objects.get(pk=cert_pk).revoked)
+
+    def test_vpn_client_post_delete_on_device_deactivation(self):
+        """Regression test for #1221: VpnClient.post_delete must fire
+        when a device is deactivated so that peer cache is invalidated
+        and certificates are properly revoked."""
+        org = self._get_org()
+        vpn = self._create_vpn()
+        t = self._create_template(name="vpn-test", type="vpn", vpn=vpn, auto_cert=True)
+        d = self._create_device(organization=org)
+        c = self._create_config(device=d)
+        c.templates.add(t)
+        vpnclient = c.vpnclient_set.first()
+        self.assertIsNotNone(vpnclient)
+        cert_pk = vpnclient.cert.pk
+        with mock.patch.object(Vpn, "_invalidate_peer_cache") as mock_invalidate:
+            d.deactivate()
+            mock_invalidate.assert_called()
+        self.assertFalse(VpnClient.objects.filter(pk=vpnclient.pk).exists())
+        # Certificate should be revoked (auto_cert=True)
+        self.assertTrue(Cert.objects.get(pk=cert_pk).revoked)
+
     def test_vpn_client_get_common_name(self):
         vpn = self._create_vpn()
         d = self._create_device()
