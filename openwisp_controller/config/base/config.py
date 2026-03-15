@@ -339,7 +339,9 @@ class AbstractConfig(ChecksumCacheMixin, BaseConfig):
                 # If the device is deactivated or in the process of deactivating, then
                 # delete all vpn clients and return.
                 with transaction.atomic():
-                    for vpnclient in instance.vpnclient_set.all().iterator():
+                    for vpnclient in instance.vpnclient_set.select_related(
+                        'vpn', 'cert', 'ip'
+                    ).iterator():
                         vpnclient.delete()
             return
 
@@ -373,7 +375,9 @@ class AbstractConfig(ChecksumCacheMixin, BaseConfig):
             # ones, have been fully added. At that point, we can identify and
             # delete VpnClient objects not linked to the final template set.
             with transaction.atomic():
-                for vpnclient in instance.vpnclient_set.exclude(
+                for vpnclient in instance.vpnclient_set.select_related(
+                    'vpn', 'cert', 'ip'
+                ).exclude(
                     template_id__in=instance.templates.values_list("id", flat=True)
                 ).iterator():
                     vpnclient.delete()
